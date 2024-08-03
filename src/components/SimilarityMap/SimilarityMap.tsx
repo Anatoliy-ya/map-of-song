@@ -34,11 +34,12 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
       setProcessedSongs(event.data);
     };
 
-    // Загрузка фоновой карт
+    // Загрузка фоновой карты
     const backgroundImage = new Image();
     backgroundImage.src = backgroundMapSvg;
     backgroundImage.onload = () => {
       backgroundImageRef.current = backgroundImage;
+      renderMap();
     };
 
     return () => {
@@ -53,7 +54,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, [songs]);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !backgroundImageRef.current) return;
 
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
@@ -61,12 +62,48 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // заполнение узлов и связей между песнями
-    const newNodes = songs.map((song) => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      song: song,
-    }));
+    // Функция проверки, находится ли точка внутри контура карты
+    const isPointInMap = (x: number, y: number) => {
+      const width = backgroundImageRef.current.width;
+      const height = backgroundImageRef.current.height;
+
+      // Использование Canvas для получения данных о пикселях карты
+      const offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = width;
+      offscreenCanvas.height = height;
+      const offscreenCtx = offscreenCanvas.getContext('2d');
+      if (!offscreenCtx) return false;
+
+      offscreenCtx.drawImage(backgroundImageRef.current, 0, 0);
+      const pixel = offscreenCtx.getImageData(x, y, 1, 1).data;
+
+      // Проверка, не является ли пиксель белым (цвет фона карты)
+      return !(pixel[0] === 255 && pixel[1] === 255 && pixel[2] === 255 && pixel[3] === 255);
+    };
+
+    // Заполнение узлов и связей между песнями
+    const newNodes: Node[] = [];
+    const maxAttempts = 10000;
+    let attempts = 0;
+
+    while (newNodes.length < songs.length && attempts < maxAttempts) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      if (isPointInMap(x, y)) {
+        newNodes.push({
+          x,
+          y,
+          song: songs[newNodes.length],
+        });
+      }
+      attempts++;
+    }
+
+    if (newNodes.length < songs.length) {
+      console.error(
+        `Failed to place all songs within the map. Placed ${newNodes.length} out of ${songs.length} songs.`,
+      );
+    }
 
     const newLinks: Link[] = [];
     processedSongs.forEach((song, i) => {
@@ -84,9 +121,17 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
 
     setNodes(newNodes);
     setLinks(newLinks);
+  }, [songs, processedSongs]);
+
+  const renderMap = () => {
+    if (!canvasRef.current || !backgroundImageRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     const simulation = () => {
-      // обновление координат узлов
+      // Обновление координат узлов
       nodes.forEach((node) => {
         node.x += (Math.random() - 0.5) * 0.1;
         node.y += (Math.random() - 0.5) * 0.1;
@@ -96,7 +141,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw background map
+      // Отрисовка фоновой карты
       if (backgroundImageRef.current) {
         ctx.drawImage(backgroundImageRef.current, 0, 0, canvas.width, canvas.height);
       }
@@ -122,10 +167,10 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
         ctx.fillStyle = node === selectedNode ? 'red' : 'blue';
         ctx.fill();
 
-        // Draw song title for selected node
+        // Отображение названия песни для выбранного узла
         if (node === selectedNode) {
           ctx.font = '12px Arial';
-          ctx.fillStyle = 'black';
+          ctx.fillStyle = 'red';
           ctx.fillText(node.song.track, node.x + 10, node.y);
         }
       });
@@ -138,15 +183,16 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
     };
 
     animate();
+  };
 
-    render();
-  }, [songs, processedSongs, selectedNode]);
+  useEffect(() => {
+    renderMap();
+  }, [nodes, links, selectedNode]);
 
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      console.log('@handleCanvasClick');
 
       const rect = canvas.getBoundingClientRect();
       const x = event.clientX - rect.left;
