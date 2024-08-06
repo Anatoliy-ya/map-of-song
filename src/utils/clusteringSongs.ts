@@ -11,15 +11,38 @@ function euclideanDistance(song1: Song, song2: Song): number {
   );
 }
 
-export function clusteringSongs(songs: Song[], k: number, maxIterations: number = 100): Song[][] {
+function randomCentroids(songs: Song[], k: number): Song[] {
+  const centroids: Song[] = [];
+  const songsCopy = [...songs];
+  while (centroids.length < k && songsCopy.length > 0) {
+    const randomIndex = Math.floor(Math.random() * songsCopy.length);
+    centroids.push(songsCopy[randomIndex]);
+    songsCopy.splice(randomIndex, 1);
+  }
+  return centroids;
+}
+
+export function clusteringSongs(songs: Song[], k: number, maxIterations: number = 50): Song[][] {
+  const processedSongs = songs.map((song) => {
+    const processedSong = { ...song };
+    features.forEach((feature) => {
+      if (processedSong[feature] === null || processedSong[feature] === undefined) {
+        processedSong[feature] = 0;
+      }
+    });
+    return processedSong;
+  });
+
   let clusters: Song[][] = Array.from({ length: k }, () => []);
-  let centroids: Song[] = songs.slice(0, k);
-  console.log('@clusters', clusters);
-  console.log('@centroids', centroids);
+  let centroids: Song[] = randomCentroids(processedSongs, k);
+
+  console.log('@Initial centroids:', centroids);
+
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     clusters = clusters.map(() => []);
 
-    for (const song of songs) {
+    // Assign songs to the nearest centroid
+    for (const song of processedSongs) {
       const closestCentroidIndex = centroids.reduce(
         (minIndex, centroid, index, arr) =>
           euclideanDistance(song, centroid) < euclideanDistance(song, arr[minIndex])
@@ -30,6 +53,9 @@ export function clusteringSongs(songs: Song[], k: number, maxIterations: number 
       clusters[closestCentroidIndex].push(song);
     }
 
+    console.log(`@Clusters at iteration ${iteration}:`, clusters);
+
+    // Compute new centroids
     const newCentroids = clusters.map((cluster, i) => {
       if (cluster.length === 0) return centroids[i];
       const centroid: Partial<Song> = {};
@@ -39,14 +65,19 @@ export function clusteringSongs(songs: Song[], k: number, maxIterations: number 
           (acc, song) => acc + (typeof song[feature] === 'number' ? (song[feature] as number) : 0),
           0,
         );
-        // @ts-ignore
         centroid[feature] = sum / cluster.length;
       });
 
       return centroid as Song;
     });
 
-    if (newCentroids.every((centroid, i) => euclideanDistance(centroid, centroids[i]) < 0.001)) {
+    console.log(`@New centroids at iteration ${iteration}:`, newCentroids);
+
+    const converged = newCentroids.every(
+      (centroid, i) => euclideanDistance(centroid, centroids[i]) < 0.1,
+    );
+    if (converged) {
+      console.log('Converged');
       break;
     }
 

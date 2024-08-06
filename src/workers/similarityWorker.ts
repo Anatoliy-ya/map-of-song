@@ -10,8 +10,7 @@ export interface SongWithSimilarities extends Song {
 }
 console.log('@worker');
 self.onmessage = (event: MessageEvent<Song[]>) => {
-  const songs = event.data;
-  const clusters = clusteringSongs(songs, Math.floor(Math.sqrt(songs.length)));
+  const clusters = clusteringSongs(event.data, Math.floor(Math.sqrt(event.data.length)));
   console.log('@clusters worker', clusters);
   const results: SongWithSimilarities[] = clusters.flatMap((cluster) => {
     return cluster.map((song) => ({

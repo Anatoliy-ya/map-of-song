@@ -1,6 +1,5 @@
 import { Song } from '../types/Song';
-import { mapHeaderToKey } from '../constants/constants';
-import { features } from '../constants/constants';
+import { mapHeaderToKey, features } from '../constants/constants';
 
 export async function parseCSV(filePath: string): Promise<Song[]> {
   console.log('parseCSV', filePath);
@@ -34,11 +33,31 @@ export async function parseCSV(filePath: string): Promise<Song[]> {
         }
       });
 
-      if (typeof song.track !== 'string' || typeof song.artist !== 'string') {
-        console.warn(`Invalid data format for song:`, song);
-      }
+      // Заменяем null и NaN на 0
+      features.forEach((feature) => {
+        if ((song[feature] === null || song[feature] === undefined, Number.isNaN(song[feature]))) {
+          song[feature] = 0 as any;
+        }
+      });
 
       return song as Song;
+    });
+
+    // Вычисляем средние значения для каждого числового признака
+    const averages = features.reduce((acc, feature) => {
+      const values = songs.map((song) => song[feature] as number).filter((value) => value !== 0);
+      acc[feature] =
+        values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+      return acc;
+    }, {} as Record<keyof Song, number>);
+
+    // Заменяем нулевые значения на средние
+    songs.forEach((song) => {
+      features.forEach((feature) => {
+        if (song[feature] === 0) {
+          song[feature] = averages[feature];
+        }
+      });
     });
 
     return songs;
@@ -64,7 +83,7 @@ function parseValue(value: string | undefined, key: keyof Song): any {
   }
 
   if (features.includes(key)) {
-    return Number(trimmedValue);
+    return Number(trimmedValue) || null;
   }
 
   if (key === 'releaseDate') {

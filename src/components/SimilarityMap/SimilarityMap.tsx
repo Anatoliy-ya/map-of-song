@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import './SimilarityMap.css';
 import { fabric } from 'fabric';
 import { Song } from '../../types/Song';
@@ -34,6 +34,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   useEffect(() => {
     workerRef.current = new similarityWorker();
     workerRef.current.onmessage = (event: MessageEvent<SongWithSimilarities[]>) => {
+      console.log('@worker', event.data);
       setProcessedSongs(event.data);
     };
 
@@ -49,6 +50,8 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, [songs]);
 
   useEffect(() => {
+    if (processedSongs.length === 0) return;
+
     const fabricCanvas = new fabric.Canvas(canvasRef.current, {
       width: window.innerWidth,
       height: window.innerHeight,
@@ -75,6 +78,9 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
         fabricCanvas.selection = false;
         fabricCanvas.lastPosX = opt.e.clientX;
         fabricCanvas.lastPosY = opt.e.clientY;
+      } else if (!opt.target) {
+        console.log('@mouse:down', !opt.target);
+        setSelectedNode(null);
       }
     });
 
@@ -96,25 +102,14 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
       fabricCanvas.selection = true;
     });
 
-    const newNodes: Node[] = [];
-    const maxAttempts = 1000;
-    let attempts = 0;
-
-    while (newNodes.length < songs.length && attempts < maxAttempts) {
-      const x = Math.random() * fabricCanvas.getWidth();
-      const y = Math.random() * fabricCanvas.getHeight();
-
-      newNodes.push({
-        x,
-        y,
-        song: songs[newNodes.length],
-      });
-
-      attempts++;
-    }
+    const newNodes: Node[] = processedSongs.map((song) => ({
+      x: Math.random() * fabricCanvas.getWidth(),
+      y: Math.random() * fabricCanvas.getHeight(),
+      song,
+    }));
 
     setNodes(newNodes);
-    console.log('@processedSongs', processedSongs);
+
     const newLinks: Link[] = [];
     processedSongs.forEach((song, i) => {
       song.similarities.forEach((similar: { isrc: string; similarity: number }) => {
@@ -139,6 +134,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, [songs, processedSongs]);
 
   const updateCanvas = () => {
+    console.log('@updateCanvas', true);
     if (fabricCanvasRef.current) {
       fabricCanvasRef.current.clear();
 
@@ -154,15 +150,9 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
         });
 
         circle.on('mousedown', (e) => {
-          console.log('@mousedown', e.target);
+          console.log('@mousedown', true);
           setSelectedNode(node);
           setPositionModal({ x: e.pointer!.x, y: e.pointer!.y });
-        });
-
-        fabricCanvasRef.current?.on('mouse:down', (options) => {
-          console.log('@mouse:down', options.target);
-          if (options.target) return;
-          setSelectedNode(null);
         });
 
         fabricCanvasRef.current?.add(circle);
@@ -204,6 +194,9 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
             left: positionModal.x,
             top: positionModal.y,
           }}>
+          <span onClick={() => setSelectedNode(null)} className="close">
+            X
+          </span>
           <h3 style={{ borderBottom: '1px solid black' }}>Selected Song</h3>
           <p style={{ borderBottom: '1px solid black' }}>Title: {selectedNode.song.track}</p>
           <p style={{ borderBottom: '1px solid black' }}>Artist: {selectedNode.song.artist}</p>
