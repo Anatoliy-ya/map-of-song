@@ -1,10 +1,12 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import './SimilarityMap.css';
+import { fabric } from 'fabric';
 import { Song } from '../../types/Song';
 import similarityWorker from '../../workers/similarityWorker.ts?worker';
-import backgroundMapSvg from '../../assets/1200px-Zlewiska-Zlewnie_Polski.svg';
+import { Modal } from '../../UI/Modal';
 
 interface SongWithSimilarities extends Song {
-  similarSongs?: Array<{ isrc: string; similarity: number }>;
+  similarities: Array<{ isrc: string; similarity: number }>;
 }
 
 interface Node {
@@ -21,25 +23,18 @@ interface Link {
 
 export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   const [processedSongs, setProcessedSongs] = useState<SongWithSimilarities[]>([]);
+  const [positionModal, setPositionModal] = useState({ x: 0, y: 0 });
   const [nodes, setNodes] = useState<Node[]>([]);
   const [links, setLinks] = useState<Link[]>([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const workerRef = useRef<Worker | null>(null);
-  const backgroundImageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     workerRef.current = new similarityWorker();
     workerRef.current.onmessage = (event: MessageEvent<SongWithSimilarities[]>) => {
       setProcessedSongs(event.data);
-    };
-
-    // Загрузка фоновой карты
-    const backgroundImage = new Image();
-    backgroundImage.src = backgroundMapSvg;
-    backgroundImage.onload = () => {
-      backgroundImageRef.current = backgroundImage;
-      renderMap();
     };
 
     return () => {
@@ -54,60 +49,75 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, [songs]);
 
   useEffect(() => {
-    if (!canvasRef.current || !backgroundImageRef.current) return;
+    const fabricCanvas = new fabric.Canvas(canvasRef.current, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
 
-    const canvas = canvasRef.current;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    fabricCanvas.setZoom(2);
 
-    // Функция проверки, находится ли точка внутри контура карты
-    const isPointInMap = (x: number, y: number) => {
-      const width = backgroundImageRef.current.width;
-      const height = backgroundImageRef.current.height;
+    fabricCanvasRef.current = fabricCanvas;
 
-      // Использование Canvas для получения данных о пикселях карты
-      const offscreenCanvas = document.createElement('canvas');
-      offscreenCanvas.width = width;
-      offscreenCanvas.height = height;
-      const offscreenCtx = offscreenCanvas.getContext('2d');
-      if (!offscreenCtx) return false;
+    fabricCanvas.on('mouse:wheel', (opt) => {
+      const delta = opt.e.deltaY;
+      let zoom = fabricCanvas.getZoom();
+      zoom *= 0.999 ** delta;
+      if (zoom > 20) zoom = 20;
+      if (zoom < 0.01) zoom = 0.01;
+      fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+    });
 
-      offscreenCtx.drawImage(backgroundImageRef.current, 0, 0);
-      const pixel = offscreenCtx.getImageData(x, y, 1, 1).data;
+    fabricCanvas.on('mouse:down', (opt) => {
+      if (opt.e.altKey === true) {
+        fabricCanvas.isDragging = true;
+        fabricCanvas.selection = false;
+        fabricCanvas.lastPosX = opt.e.clientX;
+        fabricCanvas.lastPosY = opt.e.clientY;
+      }
+    });
 
-      // Проверка, не является ли пиксель белым (цвет фона карты)
-      return !(pixel[0] === 255 && pixel[1] === 255 && pixel[2] === 255 && pixel[3] === 255);
-    };
+    fabricCanvas.on('mouse:move', (opt) => {
+      if (fabricCanvas.isDragging) {
+        const e = opt.e;
+        const vpt = fabricCanvas.viewportTransform!;
+        vpt[4] += e.clientX - fabricCanvas.lastPosX!;
+        vpt[5] += e.clientY - fabricCanvas.lastPosY!;
+        fabricCanvas.requestRenderAll();
+        fabricCanvas.lastPosX = e.clientX;
+        fabricCanvas.lastPosY = e.clientY;
+      }
+    });
 
-    // Заполнение узлов и связей между песнями
+    fabricCanvas.on('mouse:up', () => {
+      fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform!);
+      fabricCanvas.isDragging = false;
+      fabricCanvas.selection = true;
+    });
+
     const newNodes: Node[] = [];
-    const maxAttempts = 10000;
+    const maxAttempts = 1000;
     let attempts = 0;
 
     while (newNodes.length < songs.length && attempts < maxAttempts) {
-      const x = Math.random() * canvas.width;
-      const y = Math.random() * canvas.height;
-      if (isPointInMap(x, y)) {
-        newNodes.push({
-          x,
-          y,
-          song: songs[newNodes.length],
-        });
-      }
+      const x = Math.random() * fabricCanvas.getWidth();
+      const y = Math.random() * fabricCanvas.getHeight();
+
+      newNodes.push({
+        x,
+        y,
+        song: songs[newNodes.length],
+      });
+
       attempts++;
     }
 
-    if (newNodes.length < songs.length) {
-      console.error(
-        `Failed to place all songs within the map. Placed ${newNodes.length} out of ${songs.length} songs.`,
-      );
-    }
-
+    setNodes(newNodes);
+    console.log('@processedSongs', processedSongs);
     const newLinks: Link[] = [];
     processedSongs.forEach((song, i) => {
-      song.similarSongs?.forEach((similar) => {
+      song.similarities.forEach((similar: { isrc: string; similarity: number }) => {
         const targetIndex = songs.findIndex((s) => s.isrc === similar.isrc);
         if (targetIndex !== -1) {
           newLinks.push({
@@ -119,100 +129,86 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
       });
     });
 
-    setNodes(newNodes);
     setLinks(newLinks);
+    console.log('@newLinks', newLinks);
+    console.log('@newNodes', newNodes);
+
+    return () => {
+      fabricCanvas.dispose();
+    };
   }, [songs, processedSongs]);
 
-  const renderMap = () => {
-    if (!canvasRef.current || !backgroundImageRef.current) return;
+  const updateCanvas = () => {
+    if (fabricCanvasRef.current) {
+      fabricCanvasRef.current.clear();
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const simulation = () => {
-      // Обновление координат узлов
       nodes.forEach((node) => {
-        node.x += (Math.random() - 0.5) * 0.1;
-        node.y += (Math.random() - 0.5) * 0.1;
+        const circle = new fabric.Circle({
+          left: node.x,
+          top: node.y,
+          radius: 5,
+          fill: selectedNode && selectedNode.song.isrc === node.song.isrc ? 'red' : 'blue',
+          hasBorders: false,
+          hasControls: false,
+          selectable: false,
+        });
+
+        circle.on('mousedown', (e) => {
+          console.log('@mousedown', e.target);
+          setSelectedNode(node);
+          setPositionModal({ x: e.pointer!.x, y: e.pointer!.y });
+        });
+
+        fabricCanvasRef.current?.on('mouse:down', (options) => {
+          console.log('@mouse:down', options.target);
+          if (options.target) return;
+          setSelectedNode(null);
+        });
+
+        fabricCanvasRef.current?.add(circle);
       });
-    };
 
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Отрисовка фоновой карты
-      if (backgroundImageRef.current) {
-        ctx.drawImage(backgroundImageRef.current, 0, 0, canvas.width, canvas.height);
-      }
-
-      // Отрисовка связей
       if (selectedNode) {
+        console.log('links', links);
         links.forEach((link) => {
           if (link.source === selectedNode || link.target === selectedNode) {
-            ctx.beginPath();
-            ctx.moveTo(link.source.x, link.source.y);
-            ctx.lineTo(link.target.x, link.target.y);
-            ctx.strokeStyle = `rgba(255, 0, 0, ${link.strength})`;
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            const line = new fabric.Line(
+              [link.source.x, link.source.y, link.target.x, link.target.y],
+              {
+                stroke: 'red',
+                strokeWidth: link.strength * 2,
+                selectable: false,
+              },
+            );
+            fabricCanvasRef.current?.add(line);
           }
         });
       }
 
-      // Отрисовка узлов
-      nodes.forEach((node) => {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-        ctx.fillStyle = node === selectedNode ? 'red' : 'blue';
-        ctx.fill();
-
-        // Отображение названия песни для выбранного узла
-        if (node === selectedNode) {
-          ctx.font = '12px Arial';
-          ctx.fillStyle = 'red';
-          ctx.fillText(node.song.track, node.x + 10, node.y);
-        }
-      });
-    };
-
-    const animate = () => {
-      simulation();
-      render();
-      requestAnimationFrame(animate);
-    };
-
-    animate();
+      fabricCanvasRef.current.renderAll();
+    }
   };
 
   useEffect(() => {
-    renderMap();
+    updateCanvas();
   }, [nodes, links, selectedNode]);
 
-  const handleCanvasClick = useCallback(
-    (event: React.MouseEvent<HTMLCanvasElement>) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-
-      const clickedNode = nodes.find(
-        (node) => Math.sqrt((node.x - x) ** 2 + (node.y - y) ** 2) < 5,
-      );
-
-      setSelectedNode(clickedNode || null);
-    },
-    [nodes],
-  );
-
   return (
-    <canvas
-      ref={canvasRef}
-      width={window.innerWidth}
-      height={window.innerHeight}
-      onClick={handleCanvasClick}
-    />
+    <div className="similarity-map">
+      <canvas ref={canvasRef} className="canvas" />
+      {selectedNode && positionModal && (
+        <Modal
+          showModal={selectedNode !== null}
+          style={{
+            position: 'absolute',
+            left: positionModal.x,
+            top: positionModal.y,
+          }}>
+          <h3 style={{ borderBottom: '1px solid black' }}>Selected Song</h3>
+          <p style={{ borderBottom: '1px solid black' }}>Title: {selectedNode.song.track}</p>
+          <p style={{ borderBottom: '1px solid black' }}>Artist: {selectedNode.song.artist}</p>
+        </Modal>
+      )}
+    </div>
   );
 };

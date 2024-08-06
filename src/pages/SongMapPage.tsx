@@ -1,16 +1,14 @@
 import React from 'react';
 import './PageStyle.css';
-
-import { useSelector } from 'react-redux';
-import { RootState } from '../store/store';
 import { SimilarityMap } from '../components/SimilarityMap/SimilarityMap';
+import { Song } from '../types/Song';
 
-export const SongMapPage: React.FC = () => {
-  const songs = useSelector((state: RootState) => state.songs.songs);
-
+interface SongMapPageProps {
+  songs: Song[];
+}
+export const SongMapPage: React.FC<SongMapPageProps> = ({ songs }) => {
   return (
     <div className="map-page">
-      <h1>Map Page</h1>
       <SimilarityMap songs={songs} />
     </div>
   );

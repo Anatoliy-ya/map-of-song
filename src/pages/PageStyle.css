@@ -1,1 +1,30 @@
+.map-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
 
+.song-list-page {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.song-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recommended-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 500px;
+  height: 700px;
+  overflow-y: scroll;
+  border: 1px solid #ccc;
+}

@@ -1,10 +1,8 @@
 #root {
   max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  margin: 0;
   text-align: center;
 }
-
 
 @media (prefers-reduced-motion: no-preference) {
   a:nth-of-type(2) .logo {
@@ -12,10 +10,10 @@
   }
 }
 
-.App { 
+.App {
   display: flex;
   flex-direction: column;
-  align-items: center
+  align-items: center;
 }
 
 .pages-nav {
@@ -34,7 +32,6 @@
   width: 55px;
 }
 
-
 .map-btn {
   border: 1px solid black;
   border-radius: 0 5px 5px 0;
@@ -42,7 +39,6 @@
   width: 55px;
 }
 
-
-.active {
+.active-nav {
   background-color: #ccc;
 }

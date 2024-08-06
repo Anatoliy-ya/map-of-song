@@ -11,6 +11,7 @@ import { SongMapPage } from './pages/SongMapPage';
 
 function App() {
   const [selectPage, setSelectPage] = useState<number>(0);
+  const [similatitys, setSimilarities] = useState<Song[]>([]);
   const dispatch = useDispatch();
   const songs = useSelector((state: RootState) => state.songs.songs);
 
@@ -18,11 +19,8 @@ function App() {
     dispatch(loadSongs('/Songs2024mini.csv'));
   }, [dispatch]);
 
-  const handelSongSelect = (targetSong: Song) => {
-    findSimilarSongs(targetSong, songs);
-
-    console.log('@targetSong', targetSong);
-    console.log('@findSimilarSongs', findSimilarSongs(targetSong, songs));
+  const handelSongSelect = (song: Song) => {
+    setSimilarities(findSimilarSongs(song, songs));
   };
 
   return (
@@ -31,12 +29,12 @@ function App() {
         <nav>
           <ul className="pages-nav">
             <li
-              className={selectPage === 0 ? 'songs-btn active' : 'songs-btn'}
+              className={selectPage === 0 ? 'songs-btn active-nav ' : 'songs-btn'}
               onClick={() => setSelectPage(0)}>
               <Link to="/">Songs</Link>
             </li>
             <li
-              className={selectPage === 1 ? 'map-btn active' : 'map-btn'}
+              className={selectPage === 1 ? 'map-btn active-nav ' : 'map-btn'}
               onClick={() => setSelectPage(1)}>
               <Link to="/map">Map</Link>
             </li>
@@ -45,9 +43,15 @@ function App() {
         <Routes>
           <Route
             path="/"
-            element={<SongListPage songs={songs} onSongSelect={handelSongSelect} />}
+            element={
+              <SongListPage
+                songs={songs}
+                onSongSelect={handelSongSelect}
+                similarityList={similatitys}
+              />
+            }
           />
-          <Route path="/map" element={<SongMapPage />} />
+          <Route path="/map" element={<SongMapPage songs={songs} />} />
         </Routes>
       </div>
     </Router>

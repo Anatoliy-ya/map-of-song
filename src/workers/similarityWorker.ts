@@ -16,7 +16,7 @@ self.onmessage = (event: MessageEvent<Song[]>) => {
   const results: SongWithSimilarities[] = clusters.flatMap((cluster) => {
     return cluster.map((song) => ({
       ...song,
-      similarities: findSimilarSongs(song, cluster, 100).map((similarSong) => ({
+      similarities: findSimilarSongs(song, cluster, 10).map((similarSong) => ({
         isrc: similarSong.isrc,
         similarity: calculateCosineSimilarity(song, similarSong),
       })),
