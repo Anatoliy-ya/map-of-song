@@ -2,7 +2,6 @@ import { Song } from '../types/Song';
 import { mapHeaderToKey, features } from '../constants/constants';
 
 export async function parseCSV(filePath: string): Promise<Song[]> {
-  console.log('parseCSV', filePath);
   try {
     const response = await fetch(filePath);
     if (!response.ok) {
@@ -55,6 +54,7 @@ export async function parseCSV(filePath: string): Promise<Song[]> {
     songs.forEach((song) => {
       features.forEach((feature) => {
         if (song[feature] === 0) {
+          // @ts-ignore
           song[feature] = averages[feature];
         }
       });

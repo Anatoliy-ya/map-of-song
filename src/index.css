@@ -13,6 +13,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+#is-service-frame {
+  display: none;
+}
+
 a {
   font-weight: 500;
   color: #646cff;

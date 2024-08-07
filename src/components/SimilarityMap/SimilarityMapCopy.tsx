@@ -1,10 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import './SimilarityMap.css';
+import { fabric } from 'fabric';
 import { Song } from '../../types/Song';
 import similarityWorker from '../../workers/similarityWorker.ts?worker';
-import backgroundMapSvg from '../../assets/1200px-Zlewiska-Zlewnie_Polski.svg';
+import { Modal } from '../../UI/Modal';
+import rusMap from '../../assets/rus.svg';
 
 interface SongWithSimilarities extends Song {
-  similarSongs?: Array<{ isrc: string; similarity: number }>;
+  similarities: Array<{ isrc: string; similarity: number }>;
 }
 
 interface Node {
@@ -18,28 +21,22 @@ interface Link {
   target: Node;
   strength: number;
 }
-
 export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   const [processedSongs, setProcessedSongs] = useState<SongWithSimilarities[]>([]);
+  const [positionModal, setPositionModal] = useState({ x: 0, y: 0 });
   const [nodes, setNodes] = useState<Node[]>([]);
   const [links, setLinks] = useState<Link[]>([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const workerRef = useRef<Worker | null>(null);
-  const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+  const [coordinates, setCoordinates] = useState<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
     workerRef.current = new similarityWorker();
     workerRef.current.onmessage = (event: MessageEvent<SongWithSimilarities[]>) => {
+      console.log('@worker', event.data);
       setProcessedSongs(event.data);
-    };
-
-    // Загрузка фоновой карты
-    const backgroundImage = new Image();
-    backgroundImage.src = backgroundMapSvg;
-    backgroundImage.onload = () => {
-      backgroundImageRef.current = backgroundImage;
-      renderMap();
     };
 
     return () => {
@@ -54,165 +51,123 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, [songs]);
 
   useEffect(() => {
-    if (!canvasRef.current || !backgroundImageRef.current) return;
+    const loadSvgMap = async () => {
+      try {
+        const response = await fetch(rusMap);
+        const svgText = await response.text();
 
-    const canvas = canvasRef.current;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+        const paths = svgDoc.querySelectorAll('path');
 
-    // Функция проверки, находится ли точка внутри контура карты
-    const isPointInMap = (x: number, y: number) => {
-      const width = backgroundImageRef.current.width;
-      const height = backgroundImageRef.current.height;
-
-      // Использование Canvas для получения данных о пикселях карты
-      const offscreenCanvas = document.createElement('canvas');
-      offscreenCanvas.width = width;
-      offscreenCanvas.height = height;
-      const offscreenCtx = offscreenCanvas.getContext('2d');
-      if (!offscreenCtx) return false;
-
-      offscreenCtx.drawImage(backgroundImageRef.current, 0, 0);
-      const pixel = offscreenCtx.getImageData(x, y, 1, 1).data;
-
-      // Проверка, не является ли пиксель белым (цвет фона карты)
-      return !(pixel[0] === 255 && pixel[1] === 255 && pixel[2] === 255 && pixel[3] === 255);
-    };
-
-    // Заполнение узлов и связей между песнями
-    const newNodes: Node[] = [];
-    const maxAttempts = 10000;
-    let attempts = 0;
-
-    while (newNodes.length < songs.length && attempts < maxAttempts) {
-      const x = Math.random() * canvas.width;
-      const y = Math.random() * canvas.height;
-      if (isPointInMap(x, y)) {
-        newNodes.push({
-          x,
-          y,
-          song: songs[newNodes.length],
-        });
-      }
-      attempts++;
-    }
-
-    if (newNodes.length < songs.length) {
-      console.error(
-        `Failed to place all songs within the map. Placed ${newNodes.length} out of ${songs.length} songs.`,
-      );
-    }
-
-    const newLinks: Link[] = [];
-    processedSongs.forEach((song, i) => {
-      song.similarSongs?.forEach((similar) => {
-        const targetIndex = songs.findIndex((s) => s.isrc === similar.isrc);
-        if (targetIndex !== -1) {
-          newLinks.push({
-            source: newNodes[i],
-            target: newNodes[targetIndex],
-            strength: similar.similarity,
+        if (paths.length > 0) {
+          const fabricCanvas = new fabric.Canvas(canvasRef.current, {
+            width: 1000,
+            height: 1000,
           });
+
+          fabricCanvasRef.current = fabricCanvas;
+
+          let allCoordinates: { x: number; y: number }[] = [];
+
+          paths.forEach((path) => {
+            const pathLength = path.getTotalLength();
+            const pathCoordinates = [];
+
+            for (let i = 0; i < pathLength; i += 10) {
+              const point = path.getPointAtLength(i);
+              pathCoordinates.push({ x: point.x, y: point.y });
+            }
+
+            allCoordinates = allCoordinates.concat(pathCoordinates);
+
+            const fabricPath = new fabric.Path(path.getAttribute('d')?.toString(), {
+              fill: 'none',
+              stroke: 'blue',
+              strokeWidth: 1,
+              selectable: false,
+            });
+
+            fabricCanvas.add(fabricPath);
+          });
+
+          setCoordinates(allCoordinates);
+
+          fabricCanvas.renderAll();
+        } else {
+          console.error('No path elements found in SVG.');
         }
-      });
-    });
-
-    setNodes(newNodes);
-    setLinks(newLinks);
-  }, [songs, processedSongs]);
-
-  const renderMap = () => {
-    if (!canvasRef.current || !backgroundImageRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const simulation = () => {
-      // Обновление координат узлов
-      nodes.forEach((node) => {
-        node.x += (Math.random() - 0.5) * 0.1;
-        node.y += (Math.random() - 0.5) * 0.1;
-      });
-    };
-
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Отрисовка фоновой карты
-      if (backgroundImageRef.current) {
-        ctx.drawImage(backgroundImageRef.current, 0, 0, canvas.width, canvas.height);
+      } catch (error) {
+        console.error('Error loading SVG:', error);
       }
-
-      // Отрисовка связей
-      if (selectedNode) {
-        links.forEach((link) => {
-          if (link.source === selectedNode || link.target === selectedNode) {
-            ctx.beginPath();
-            ctx.moveTo(link.source.x, link.source.y);
-            ctx.lineTo(link.target.x, link.target.y);
-            ctx.strokeStyle = `rgba(255, 0, 0, ${link.strength})`;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          }
-        });
-      }
-
-      // Отрисовка узлов
-      nodes.forEach((node) => {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-        ctx.fillStyle = node === selectedNode ? 'red' : 'blue';
-        ctx.fill();
-
-        // Отображение названия песни для выбранного узла
-        if (node === selectedNode) {
-          ctx.font = '12px Arial';
-          ctx.fillStyle = 'red';
-          ctx.fillText(node.song.track, node.x + 10, node.y);
-        }
-      });
     };
 
-    const animate = () => {
-      simulation();
-      render();
-      requestAnimationFrame(animate);
-    };
-
-    animate();
-  };
+    loadSvgMap();
+  }, []);
 
   useEffect(() => {
-    renderMap();
-  }, [nodes, links, selectedNode]);
+    if (coordinates.length > 0) {
+      const randomPoints = generateRandomPointsInsidePolygon(coordinates, 999);
 
-  const handleCanvasClick = useCallback(
-    (event: React.MouseEvent<HTMLCanvasElement>) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+      randomPoints.forEach((coord) => {
+        const circle = new fabric.Circle({
+          left: coord.x,
+          top: coord.y,
+          radius: 2,
+          fill: 'blue',
+          selectable: false,
+        });
+        fabricCanvasRef.current.add(circle);
+      });
 
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
+      fabricCanvasRef.current.renderAll();
+    }
+  }, [coordinates]);
 
-      const clickedNode = nodes.find(
-        (node) => Math.sqrt((node.x - x) ** 2 + (node.y - y) ** 2) < 5,
-      );
+  const generateRandomPointsInsidePolygon = (
+    polygon: { x: number; y: number }[],
+    count: number,
+  ) => {
+    const points = [];
 
-      setSelectedNode(clickedNode || null);
-    },
-    [nodes],
-  );
+    const minX = Math.min(...polygon.map((point) => point.x));
+    const maxX = Math.max(...polygon.map((point) => point.x));
+    const minY = Math.min(...polygon.map((point) => point.y));
+    const maxY = Math.max(...polygon.map((point) => point.y));
+
+    while (points.length < count) {
+      const x = Math.random() * (maxX - minX) + minX;
+      const y = Math.random() * (maxY - minY) + minY;
+
+      if (isPointInsidePolygon({ x, y }, polygon)) {
+        points.push({ x, y });
+      }
+    }
+
+    return points;
+  };
+
+  const isPointInsidePolygon = (
+    point: { x: number; y: number },
+    polygon: { x: number; y: number }[],
+  ) => {
+    let isInside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x,
+        yi = polygon[i].y;
+      const xj = polygon[j].x,
+        yj = polygon[j].y;
+
+      const intersect =
+        yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi;
+      if (intersect) isInside = !isInside;
+    }
+    return isInside;
+  };
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={window.innerWidth}
-      height={window.innerHeight}
-      onClick={handleCanvasClick}
-    />
+    <div className="similarity-map">
+      <canvas ref={canvasRef} className="canvas" />
+    </div>
   );
 };

@@ -3,7 +3,7 @@ import './Modal.css';
 
 interface PropsModal {
   children: React.ReactNode;
-  showModal: Boolean;
+  showModal?: Boolean;
   style: {
     position?: string;
     left?: number | string;
@@ -11,15 +11,19 @@ interface PropsModal {
     width?: number;
     height?: number;
   };
+  onClose?: () => void;
 }
 export const Modal: React.FC<PropsModal> = ({ children, showModal, style }) => {
-  const [show, setShow] = useState<Boolean>(showModal);
+  const [show, setShow] = useState<Boolean>(!showModal);
 
   useEffect(() => {
-    setShow(showModal);
+    setShow(!showModal);
   }, [showModal]);
   return (
-    <div className={show ? 'active' : 'modal'} style={style as CSSProperties}>
+    <div
+      className={show ? 'active' : 'modal'}
+      style={style as CSSProperties}
+      onClick={() => setShow(false)}>
       {children}
     </div>
   );

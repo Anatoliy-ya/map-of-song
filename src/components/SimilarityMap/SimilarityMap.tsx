@@ -4,6 +4,7 @@ import { fabric } from 'fabric';
 import { Song } from '../../types/Song';
 import similarityWorker from '../../workers/similarityWorker.ts?worker';
 import { Modal } from '../../UI/Modal';
+import rusMap from '../../assets/rus.svg';
 
 interface SongWithSimilarities extends Song {
   similarities: Array<{ isrc: string; similarity: number }>;
@@ -30,6 +31,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const [coordinates, setCoordinates] = useState<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
     workerRef.current = new similarityWorker();
@@ -50,62 +52,111 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, [songs]);
 
   useEffect(() => {
-    if (processedSongs.length === 0) return;
+    const loadSvgMap = async () => {
+      try {
+        const response = await fetch(rusMap);
+        const svgText = await response.text();
 
-    const fabricCanvas = new fabric.Canvas(canvasRef.current, {
-      width: window.innerWidth,
-      height: window.innerHeight,
-    });
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+        const paths = svgDoc.querySelectorAll('path');
 
-    fabricCanvas.setZoom(2);
+        if (paths.length > 0) {
+          const fabricCanvas = new fabric.Canvas(canvasRef.current, {
+            width: 1200,
+            height: 800,
+          });
 
-    fabricCanvasRef.current = fabricCanvas;
+          fabricCanvasRef.current = fabricCanvas;
 
-    fabricCanvas.on('mouse:wheel', (opt) => {
-      const delta = opt.e.deltaY;
-      let zoom = fabricCanvas.getZoom();
-      zoom *= 0.999 ** delta;
-      if (zoom > 20) zoom = 20;
-      if (zoom < 0.01) zoom = 0.01;
-      fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-      opt.e.preventDefault();
-      opt.e.stopPropagation();
-    });
+          fabricCanvas.on('mouse:wheel', (opt) => {
+            const delta = opt.e.deltaY;
+            let zoom = fabricCanvas.getZoom();
+            zoom *= 0.999 ** delta;
+            if (zoom > 2) zoom = 2; // Ограничение максимального масштаба
+            if (zoom < 0.1) zoom = 0.1; // Ограничение минимального масштаба
+            fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            opt.e.preventDefault();
+            opt.e.stopPropagation();
+          });
 
-    fabricCanvas.on('mouse:down', (opt) => {
-      if (opt.e.altKey === true) {
-        fabricCanvas.isDragging = true;
-        fabricCanvas.selection = false;
-        fabricCanvas.lastPosX = opt.e.clientX;
-        fabricCanvas.lastPosY = opt.e.clientY;
-      } else if (!opt.target) {
-        console.log('@mouse:down', !opt.target);
-        setSelectedNode(null);
+          fabricCanvas.on('mouse:down', (opt) => {
+            if (opt.e.altKey === true) {
+              fabricCanvas.isDragging = true;
+              fabricCanvas.selection = false;
+              fabricCanvas.lastPosX = opt.e.clientX;
+              fabricCanvas.lastPosY = opt.e.clientY;
+            } else if (!opt.target) {
+              console.log('@mouse:down', !opt.target);
+              setSelectedNode(null);
+            }
+          });
+
+          fabricCanvas.on('mouse:move', (opt) => {
+            if (fabricCanvas.isDragging) {
+              const e = opt.e;
+              const vpt = fabricCanvas.viewportTransform!;
+              vpt[4] += e.clientX - fabricCanvas.lastPosX!;
+              vpt[5] += e.clientY - fabricCanvas.lastPosY!;
+              fabricCanvas.requestRenderAll();
+              fabricCanvas.lastPosX = e.clientX;
+              fabricCanvas.lastPosY = e.clientY;
+            }
+          });
+
+          fabricCanvas.on('mouse:up', () => {
+            fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform!);
+            fabricCanvas.isDragging = false;
+            fabricCanvas.selection = true;
+          });
+
+          let allCoordinates: { x: number; y: number }[] = [];
+
+          paths.forEach((path) => {
+            const pathLength = path.getTotalLength();
+            const pathCoordinates = [];
+
+            for (let i = 0; i < pathLength; i += 10) {
+              const point = path.getPointAtLength(i);
+              pathCoordinates.push({ x: point.x, y: point.y });
+            }
+
+            allCoordinates = allCoordinates.concat(pathCoordinates);
+
+            const fabricPath = new fabric.Path(path.getAttribute('d')?.toString(), {
+              fill: 'none',
+              stroke: 'blue',
+              strokeWidth: 1,
+              selectable: false,
+            });
+
+            fabricCanvas.add(fabricPath);
+          });
+
+          setCoordinates(allCoordinates);
+
+          fabricCanvas.renderAll();
+        } else {
+          console.error('No path elements found in SVG.');
+        }
+      } catch (error) {
+        console.error('Error loading SVG:', error);
       }
-    });
+    };
 
-    fabricCanvas.on('mouse:move', (opt) => {
-      if (fabricCanvas.isDragging) {
-        const e = opt.e;
-        const vpt = fabricCanvas.viewportTransform!;
-        vpt[4] += e.clientX - fabricCanvas.lastPosX!;
-        vpt[5] += e.clientY - fabricCanvas.lastPosY!;
-        fabricCanvas.requestRenderAll();
-        fabricCanvas.lastPosX = e.clientX;
-        fabricCanvas.lastPosY = e.clientY;
-      }
-    });
+    loadSvgMap();
+  }, []);
 
-    fabricCanvas.on('mouse:up', () => {
-      fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform!);
-      fabricCanvas.isDragging = false;
-      fabricCanvas.selection = true;
-    });
+  useEffect(() => {
+    if (processedSongs.length === 0 || coordinates.length === 0) return;
 
-    const newNodes: Node[] = processedSongs.map((song) => ({
-      x: Math.random() * fabricCanvas.getWidth(),
-      y: Math.random() * fabricCanvas.getHeight(),
-      song,
+    const newNodes: Node[] = generateRandomPointsInsidePolygon(
+      coordinates,
+      processedSongs.length,
+    ).map((coord, index) => ({
+      x: coord.x,
+      y: coord.y,
+      song: processedSongs[index],
     }));
 
     setNodes(newNodes);
@@ -113,7 +164,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
     const newLinks: Link[] = [];
     processedSongs.forEach((song, i) => {
       song.similarities.forEach((similar: { isrc: string; similarity: number }) => {
-        const targetIndex = songs.findIndex((s) => s.isrc === similar.isrc);
+        const targetIndex = processedSongs.findIndex((s) => s.isrc === similar.isrc);
         if (targetIndex !== -1) {
           newLinks.push({
             source: newNodes[i],
@@ -129,79 +180,98 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
     console.log('@newNodes', newNodes);
 
     return () => {
-      fabricCanvas.dispose();
+      fabricCanvasRef.current?.dispose();
     };
-  }, [songs, processedSongs]);
+  }, [processedSongs, coordinates]);
 
-  const updateCanvas = () => {
-    console.log('@updateCanvas', true);
-    if (fabricCanvasRef.current) {
-      fabricCanvasRef.current.clear();
-
+  useEffect(() => {
+    if ((coordinates.length > 0, fabricCanvasRef.current)) {
       nodes.forEach((node) => {
+        let radius: number;
+        const streaming: number =
+          node.song.pandoraStreams +
+          node.song.appleMusicPlaylistCount +
+          node.song.spotifyPlaylistCount +
+          node.song.shazamCounts / 4;
+        if (streaming <= 300) {
+          radius = 2;
+        } else if (streaming <= 400) {
+          radius = 2.2;
+        } else if (streaming <= 500) {
+          radius = 2.4;
+        } else if (streaming <= 600) {
+          radius = 2.6;
+        } else if (streaming <= 700) {
+          radius = 2.8;
+        } else if (streaming <= 800) {
+          radius = 3;
+        } else if (streaming <= 900) {
+          radius = 3.3;
+        } else if (streaming <= 1000) {
+          radius = 3.6;
+        } else {
+          radius = 4;
+        }
+        console.log('@radius', radius);
         const circle = new fabric.Circle({
           left: node.x,
           top: node.y,
-          radius: 5,
-          fill: selectedNode && selectedNode.song.isrc === node.song.isrc ? 'red' : 'blue',
-          hasBorders: false,
-          hasControls: false,
+          radius: radius,
+          fill: 'blue',
           selectable: false,
         });
 
-        circle.on('mousedown', (e) => {
-          console.log('@mousedown', true);
-          setSelectedNode(node);
-          setPositionModal({ x: e.pointer!.x, y: e.pointer!.y });
-        });
-
-        fabricCanvasRef.current?.add(circle);
+        fabricCanvasRef.current!.add(circle);
       });
-
-      if (selectedNode) {
-        console.log('links', links);
-        links.forEach((link) => {
-          if (link.source === selectedNode || link.target === selectedNode) {
-            const line = new fabric.Line(
-              [link.source.x, link.source.y, link.target.x, link.target.y],
-              {
-                stroke: 'red',
-                strokeWidth: link.strength * 2,
-                selectable: false,
-              },
-            );
-            fabricCanvasRef.current?.add(line);
-          }
-        });
-      }
 
       fabricCanvasRef.current.renderAll();
     }
+  }, [coordinates, nodes]);
+
+  const generateRandomPointsInsidePolygon = (
+    polygon: { x: number; y: number }[],
+    count: number,
+  ) => {
+    const points = [];
+
+    const minX = Math.min(...polygon.map((point) => point.x));
+    const maxX = Math.max(...polygon.map((point) => point.x));
+    const minY = Math.min(...polygon.map((point) => point.y));
+    const maxY = Math.max(...polygon.map((point) => point.y));
+
+    while (points.length < count) {
+      const x = Math.random() * (maxX - minX) + minX;
+      const y = Math.random() * (maxY - minY) + minY;
+
+      if (isPointInsidePolygon({ x, y }, polygon)) {
+        points.push({ x, y });
+      }
+    }
+
+    return points;
   };
 
-  useEffect(() => {
-    updateCanvas();
-  }, [nodes, links, selectedNode]);
+  const isPointInsidePolygon = (
+    point: { x: number; y: number },
+    polygon: { x: number; y: number }[],
+  ) => {
+    let isInside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x,
+        yi = polygon[i].y;
+      const xj = polygon[j].x,
+        yj = polygon[j].y;
+
+      const intersect =
+        yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi;
+      if (intersect) isInside = !isInside;
+    }
+    return isInside;
+  };
 
   return (
     <div className="similarity-map">
       <canvas ref={canvasRef} className="canvas" />
-      {selectedNode && positionModal && (
-        <Modal
-          showModal={selectedNode !== null}
-          style={{
-            position: 'absolute',
-            left: positionModal.x,
-            top: positionModal.y,
-          }}>
-          <span onClick={() => setSelectedNode(null)} className="close">
-            X
-          </span>
-          <h3 style={{ borderBottom: '1px solid black' }}>Selected Song</h3>
-          <p style={{ borderBottom: '1px solid black' }}>Title: {selectedNode.song.track}</p>
-          <p style={{ borderBottom: '1px solid black' }}>Artist: {selectedNode.song.artist}</p>
-        </Modal>
-      )}
     </div>
   );
 };
