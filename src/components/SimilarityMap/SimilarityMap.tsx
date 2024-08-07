@@ -63,7 +63,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
 
         if (paths.length > 0) {
           const fabricCanvas = new fabric.Canvas(canvasRef.current, {
-            width: 1200,
+            width: 1400,
             height: 800,
           });
 
@@ -184,47 +184,98 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
     };
   }, [processedSongs, coordinates]);
 
-  useEffect(() => {
-    if ((coordinates.length > 0, fabricCanvasRef.current)) {
-      nodes.forEach((node) => {
-        let radius: number;
-        const streaming: number =
-          node.song.pandoraStreams +
-          node.song.appleMusicPlaylistCount +
-          node.song.spotifyPlaylistCount +
-          node.song.shazamCounts / 4;
-        if (streaming <= 300) {
-          radius = 2;
-        } else if (streaming <= 400) {
-          radius = 2.2;
-        } else if (streaming <= 500) {
-          radius = 2.4;
-        } else if (streaming <= 600) {
-          radius = 2.6;
-        } else if (streaming <= 700) {
-          radius = 2.8;
-        } else if (streaming <= 800) {
-          radius = 3;
-        } else if (streaming <= 900) {
-          radius = 3.3;
-        } else if (streaming <= 1000) {
-          radius = 3.6;
-        } else {
-          radius = 4;
-        }
-        console.log('@radius', radius);
-        const circle = new fabric.Circle({
-          left: node.x,
-          top: node.y,
-          radius: radius,
-          fill: 'blue',
-          selectable: false,
-        });
+  const drawPoints = (nodes: Node[]) => {
+    nodes.forEach((node) => {
+      let radius: number;
+      const streaming: number =
+        node.song.pandoraStreams +
+        node.song.appleMusicPlaylistCount +
+        node.song.spotifyPlaylistCount +
+        node.song.shazamCounts / 4;
+      if (streaming <= 300) {
+        radius = 2;
+      } else if (streaming <= 400) {
+        radius = 2.2;
+      } else if (streaming <= 500) {
+        radius = 2.4;
+      } else if (streaming <= 600) {
+        radius = 2.6;
+      } else if (streaming <= 700) {
+        radius = 2.8;
+      } else if (streaming <= 800) {
+        radius = 3;
+      } else if (streaming <= 900) {
+        radius = 3.3;
+      } else if (streaming <= 1000) {
+        radius = 3.6;
+      } else {
+        radius = 4;
+      }
 
-        fabricCanvasRef.current!.add(circle);
+      const circle = new fabric.Circle({
+        left: node.x,
+        top: node.y,
+        radius: radius,
+        fill: selectedNode && selectedNode.song.isrc === node.song.isrc ? 'red' : 'blue',
+        hasBorders: false,
+        hasControls: false,
+        selectable: false,
       });
 
-      fabricCanvasRef.current.renderAll();
+      circle.on('mousedown', () => {
+        handleNodeClick(node);
+        setPositionModal({ x: node.x, y: node.y });
+      });
+      fabricCanvasRef.current!.add(circle);
+    });
+
+    fabricCanvasRef.current!.renderAll();
+  };
+
+  const drawLines = (node: Node, links: Link[]) => {
+    links.forEach((link) => {
+      if (link.source.song.isrc === node.song.isrc || link.target.song.isrc === node.song.isrc) {
+        const line = new fabric.Line([link.source.x, link.source.y, link.target.x, link.target.y], {
+          stroke: 'red',
+          strokeWidth: 1,
+          selectable: false,
+        });
+        fabricCanvasRef.current!.add(line);
+      }
+    });
+
+    fabricCanvasRef.current!.renderAll();
+  };
+
+  const handleNodeClick = (node: Node) => {
+    console.log('Song:', node.song.track);
+
+    fabricCanvasRef.current?.getObjects().forEach((obj) => {
+      if (obj.type === 'circle' || obj.type === 'line') {
+        fabricCanvasRef.current?.remove(obj);
+      }
+    });
+
+    setSelectedNode(node);
+    drawPoints(nodes);
+    drawLines(node, links);
+  };
+
+  const handleCanvasClick = () => {
+    fabricCanvasRef.current?.getObjects().forEach((obj) => {
+      if (obj.type === 'circle' || obj.type === 'line') {
+        fabricCanvasRef.current?.remove(obj);
+      }
+    });
+
+    drawPoints(nodes);
+    setSelectedNode(null);
+  };
+
+  useEffect(() => {
+    if ((coordinates.length > 0, fabricCanvasRef.current)) {
+      drawPoints(nodes);
+      fabricCanvasRef.current.on('mouse:down', handleCanvasClick);
     }
   }, [coordinates, nodes]);
 
@@ -272,6 +323,22 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   return (
     <div className="similarity-map">
       <canvas ref={canvasRef} className="canvas" />
+      {selectedNode && (
+        <Modal
+          style={{
+            position: 'absolute',
+            left: positionModal.x,
+            top: positionModal.y,
+          }}>
+          <span onClick={() => setSelectedNode(null)} className="close">
+            X
+          </span>
+          <h3 className="text-song">Selected Song</h3>
+          <p className="text-song">Title: {selectedNode.song.track}</p>
+          <p className="text-song">Artist: {selectedNode.song.artist}</p>
+          <p className="text-song">Album: {selectedNode.song.albumName}</p>
+        </Modal>
+      )}
     </div>
   );
 };
