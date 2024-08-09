@@ -4,7 +4,7 @@ import { clusteringSongs } from '../utils/clusteringSongs';
 
 export interface SongWithSimilarities extends Song {
   similarities: {
-    isrc: string;
+    id: string;
     similarity: number;
   }[];
 }
@@ -16,7 +16,7 @@ self.onmessage = (event: MessageEvent<Song[]>) => {
     return cluster.map((song) => ({
       ...song,
       similarities: findSimilarSongs(song, cluster, 10).map((similarSong) => ({
-        isrc: similarSong.isrc,
+        id: similarSong.id,
         similarity: calculateCosineSimilarity(song, similarSong),
       })),
     }));

@@ -46,17 +46,14 @@ export const SongList: React.FC<SongListProps> = ({ songs, onSongSelect }) => {
         className="search-input"
       />
       <ul className="songs">
-        {currentSongs.map((song, index) => (
-          <li key={song.isrc + index} className="song-item" onClick={() => onSongSelect?.(song)}>
+        {currentSongs.map((song) => (
+          <li key={song.id} className="song-item" onClick={() => onSongSelect?.(song)}>
             <div className="song-album">
               <p>{song.albumName}</p>
             </div>
             <div className="song-info">
               <h3 className="song-title">{song.track}</h3>
               <p className="song-artist">{song.artist}</p>
-              <p className="song-streams">
-                {Number.isNaN(song.spotifyStreams) ? '' : song.spotifyStreams + 'streams'}
-              </p>
             </div>
           </li>
         ))}

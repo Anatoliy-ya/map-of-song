@@ -1,5 +1,4 @@
 #root {
-  max-width: 1280px;
   margin: 0;
   text-align: center;
 }
@@ -13,7 +12,8 @@
 .App {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .pages-nav {

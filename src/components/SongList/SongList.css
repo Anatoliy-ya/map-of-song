@@ -1,7 +1,5 @@
 .song-list {
   width: 700px;
-  margin: 0 auto;
-  
 }
 
 .search-input {
@@ -15,16 +13,18 @@
   list-style-type: none;
   padding: 0;
   border: 1px solid #ccc;
+  height: 1000px;
+  width: 700px;
 }
-
 
 .song-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px;
+  padding: 0 10px;
   border-bottom: 1px solid #eee;
   cursor: pointer;
+  height: 99px;
 }
 
 .song-item:hover {
@@ -36,7 +36,6 @@
   margin-right: 15px;
   object-fit: cover;
 }
-
 
 .song-title {
   margin: 0;
@@ -53,8 +52,6 @@
   font-size: 14px;
   color: #999;
 }
-
-
 
 .pagination {
   display: flex;

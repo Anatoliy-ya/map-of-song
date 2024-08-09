@@ -33,6 +33,7 @@ export const csvHeaders = [
 ];
 
 export const mapHeaderToKey: { [key: string]: keyof Song } = {
+  id: 'id',
   Track: 'track',
   'Album Name': 'albumName',
   Artist: 'artist',

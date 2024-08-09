@@ -25,7 +25,7 @@ export const SongListPage: React.FC<SongListPageProps> = ({
   return (
     <div className="song-list-page">
       <div className="song-list">
-        <h1>Song List</h1>
+        <h2>Song List</h2>
         <SongList songs={songs} onSongSelect={onSongSelect} />
       </div>
       {showRecommendedList && (

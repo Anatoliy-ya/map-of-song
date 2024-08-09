@@ -46,7 +46,7 @@ export const calculateAllSimilarities = (songs: Song[]): Song[] => {
     const similarities = songs
       .filter((otherSong) => otherSong !== song)
       .map((otherSong) => ({
-        isrc: otherSong.isrc,
+        id: otherSong.id,
         similarity: calculateCosineSimilarity(song, otherSong),
       }))
       .sort((a, b) => b.similarity - a.similarity);

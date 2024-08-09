@@ -1,28 +1,29 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import { Song } from './types/Song';
-import { useDispatch, useSelector } from 'react-redux';
-import { loadSongs } from './data/loadSongs';
-import { RootState } from './store/store';
-import { calculateAllSimilarities, findSimilarSongs } from './utils/similarityCalculator';
+import { findSimilarSongs } from './utils/similarityCalculator';
 import { SongListPage } from './pages/SongListPage';
 import { SongMapPage } from './pages/SongMapPage';
+
+import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from './store/store';
+import { fetchAllSongs } from './store/songsSlice';
 
 function App() {
   const [selectPage, setSelectPage] = useState<number>(0);
   const [similatitys, setSimilarities] = useState<Song[]>([]);
   const dispatch = useDispatch();
-  const songs = useSelector((state: RootState) => state.songs.songs);
+  const { songs, loading, error } = useSelector((state: RootState) => state.songs);
 
   useEffect(() => {
-    dispatch(loadSongs('/Songs2024mini.csv'));
+    dispatch(fetchAllSongs());
   }, [dispatch]);
 
   const handelSongSelect = (song: Song) => {
     setSimilarities(findSimilarSongs(song, songs));
   };
-
+  if (loading) return <p>Loading...</p>;
   return (
     <Router>
       <div className="App">

@@ -1,11 +1,18 @@
 .active {
   display: block;
+  position: absolute;
+  top: 14%;
+  left: 66%;
+  transform: translate(-50%, -50%);
+  width: 150px;
+  height: 210px;
   z-index: 5;
   padding: 5px;
   background-color: #ffffff;
   border: 1px solid #ccc;
   border-radius: 5px;
   box-shadow: 2px 2px 2px 0px rgba(0, 0, 0, 0.5);
+  overflow-y: scroll;
 }
 
 .modal {
