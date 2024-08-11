@@ -1,22 +1,27 @@
 // api.ts
 import axios from 'axios';
 import { transformData } from '../utils/transformData';
-import { Song } from '../types/Song'; // Если у вас есть определение типа Song в отдельном файле
+import { Song } from '../types/songInterface';
 
 const API_BASE_URL = 'http://localhost:3000';
+const API_PUBLIC_URL = 'https://poor-heads-rush.loca.lt';
 
 export const getAllSongs = async (): Promise<Song[]> => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/songs`);
-    const rawSongsData = response.data;
+    const response = await axios.get(`${API_PUBLIC_URL}/songs`);
+    console.log('Response data:', response.data);
 
-    // Применяем transformData ко всем элементам массива
-    const transformedSongs = rawSongsData.map(transformData);
-    console.log('@transformedSongs', transformedSongs);
-    return transformedSongs;
+    const rawSongsData = response.data;
+    if (Array.isArray(rawSongsData)) {
+      const transformedSongs = rawSongsData.map(transformData);
+      return transformedSongs;
+    } else {
+      console.error('Data is not an array:', rawSongsData);
+      throw new Error('Expected an array but got something else');
+    }
   } catch (error) {
     console.error('Error fetching songs:', error);
-    throw error; // Можете обработать ошибку более детально, если нужно
+    throw error;
   }
 };
 
