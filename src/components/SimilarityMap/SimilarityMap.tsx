@@ -4,6 +4,8 @@ import { Song } from '../../types/Song';
 import { Modal } from '../../UI/Modal';
 import similarityWorker from '../../workers/similarityWorker.ts?worker';
 import rusMap from '../../assets/rus.svg';
+import otherMap from '../../assets/1200px-Zlewiska-Zlewnie_Polski.svg';
+import otherMap2 from '../../assets/Czechian_EU_Election_2024_by_territory.svg.svg';
 import { findSimilarSongs } from '../../utils/similarityCalculator';
 
 import { fabric } from 'fabric';
@@ -74,6 +76,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
           const fabricCanvas = new fabric.Canvas(canvasRef.current, {
             width: 1100,
             height: 800,
+            backgroundColor: '#484848',
           });
 
           fabricCanvasRef.current = fabricCanvas;
@@ -267,7 +270,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
         left: node.x,
         top: node.y,
         radius: radius,
-        fill: 'blue',
+        fill: '#912ecf',
         hasBorders: false,
         hasControls: false,
         selectable: false,
