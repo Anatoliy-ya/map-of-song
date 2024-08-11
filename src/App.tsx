@@ -14,7 +14,7 @@ function App() {
   const [selectPage, setSelectPage] = useState<number>(0);
   const [similatitys, setSimilarities] = useState<Song[]>([]);
   const dispatch = useDispatch();
-  const { songs, loading, error } = useSelector((state: RootState) => state.songs);
+  const { songs, loading } = useSelector((state: RootState) => state.songs);
 
   useEffect(() => {
     // @ts-ignore
