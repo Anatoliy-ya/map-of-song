@@ -4,8 +4,6 @@ import { Song } from '../../types/Song';
 import { Modal } from '../../UI/Modal';
 import similarityWorker from '../../workers/similarityWorker.ts?worker';
 import rusMap from '../../assets/rus.svg';
-import otherMap from '../../assets/1200px-Zlewiska-Zlewnie_Polski.svg';
-import otherMap2 from '../../assets/Czechian_EU_Election_2024_by_territory.svg.svg';
 import { findSimilarSongs } from '../../utils/similarityCalculator';
 
 import { fabric } from 'fabric';
@@ -29,7 +27,7 @@ interface Link {
 
 export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   const [processedSongs, setProcessedSongs] = useState<SongWithSimilarities[]>([]);
-  const [positionModal, setPositionModal] = useState({ x: 0, y: 0 });
+  // const [positionModal, setPositionModal] = useState({ x: 0, y: 0 });
   const [nodes, setNodes] = useState<Node[]>([]);
   const [links, setLinks] = useState<Link[]>([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -281,7 +279,6 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
       // Обработка кликов по кругу
       circle.on('mousedown', () => {
         handleNodeClick(node);
-        setPositionModal({ x: node.x, y: node.y });
       });
 
       // Добавляем круг на холст

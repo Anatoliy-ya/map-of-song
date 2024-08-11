@@ -1,7 +1,7 @@
 // api.ts
 import axios from 'axios';
 import { transformData } from '../utils/transformData';
-import { Song } from '../types/songInterface';
+import { Song } from '../types/Song';
 
 const API_BASE_URL = 'http://localhost:3000';
 const API_PUBLIC_URL = 'https://poor-heads-rush.loca.lt';

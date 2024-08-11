@@ -17,6 +17,7 @@ function App() {
   const { songs, loading, error } = useSelector((state: RootState) => state.songs);
 
   useEffect(() => {
+    // @ts-ignore
     dispatch(fetchAllSongs());
   }, [dispatch]);
 
