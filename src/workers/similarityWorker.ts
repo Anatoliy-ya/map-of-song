@@ -1,4 +1,4 @@
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 import { calculateCosineSimilarity, findSimilarSongs } from '../utils/similarityCalculator';
 import { clusteringSongs } from '../utils/clusteringSongs';
 

@@ -1,4 +1,4 @@
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 import { features } from '../constants/constants';
 
 function euclideanDistance(song1: Song, song2: Song): number {

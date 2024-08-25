@@ -1,4 +1,4 @@
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 import { mapHeaderToKey, features } from '../constants/constants';
 
 export async function parseCSV(filePath: string): Promise<Song[]> {

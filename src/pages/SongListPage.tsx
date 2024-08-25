@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './PageStyle.css';
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 import { SongList } from '../components/SongList/SongList';
 
 interface SongListPageProps {

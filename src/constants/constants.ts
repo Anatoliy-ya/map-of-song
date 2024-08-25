@@ -1,4 +1,4 @@
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 
 export const csvHeaders = [
   'Track',

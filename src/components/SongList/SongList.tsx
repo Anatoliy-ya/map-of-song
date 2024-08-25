@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import './SongList.css';
-import { Song } from '../../types/Song';
+import { Song } from '../../types/types';
 
 interface SongListProps {
   songs: Song[];

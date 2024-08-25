@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import { Song } from './types/Song';
+import { Song } from './types/types';
 import { findSimilarSongs } from './utils/similarityCalculator';
 import { SongListPage } from './pages/SongListPage';
 import { SongMapPage } from './pages/SongMapPage';
@@ -11,7 +11,7 @@ import { RootState } from './store/store';
 import { fetchAllSongs } from './store/songsSlice';
 
 function App() {
-  const [selectPage, setSelectPage] = useState<number>(0);
+  const [selectPage, setSelectPage] = useState<number>();
   const [similatitys, setSimilarities] = useState<Song[]>([]);
   const dispatch = useDispatch();
   const { songs, loading } = useSelector((state: RootState) => state.songs);
@@ -33,7 +33,7 @@ function App() {
             <li
               className={selectPage === 0 ? 'songs-btn active-nav ' : 'songs-btn'}
               onClick={() => setSelectPage(0)}>
-              <Link to="/">Songs</Link>
+              <Link to="/songs">Songs</Link>
             </li>
             <li
               className={selectPage === 1 ? 'map-btn active-nav ' : 'map-btn'}
@@ -44,7 +44,7 @@ function App() {
         </nav>
         <Routes>
           <Route
-            path="/"
+            path="/songs"
             element={
               <SongListPage
                 songs={songs}

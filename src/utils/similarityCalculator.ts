@@ -1,4 +1,4 @@
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 import { features } from '../constants/constants';
 
 export function calculateCosineSimilarity(song1: Song, song2: Song): number {

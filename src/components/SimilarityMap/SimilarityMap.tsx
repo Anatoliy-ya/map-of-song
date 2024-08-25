@@ -1,29 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react';
 import './SimilarityMap.css';
-import { Song } from '../../types/Song';
+import { Song, Node, Link, SongWithSimilarities } from '../../types/types';
 import { Modal } from '../../UI/Modal';
 import similarityWorker from '../../workers/similarityWorker.ts?worker';
 import rusMap from '../../assets/rus.svg';
 import { findSimilarSongs } from '../../utils/similarityCalculator';
 
 import { fabric } from 'fabric';
-
-interface SongWithSimilarities extends Song {
-  similarities: Array<{ id: string; similarity: number }>;
-  onSongSelect?: (song: Song) => void;
-}
-
-interface Node {
-  x: number;
-  y: number;
-  song: Song;
-}
-
-interface Link {
-  source: Node;
-  target: Node;
-  strength: number;
-}
 
 export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   const [processedSongs, setProcessedSongs] = useState<SongWithSimilarities[]>([]);
@@ -35,7 +18,7 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const [coordinates, setCoordinates] = useState<{ x: number; y: number }[]>([]);
-  const [similatitys, setSimilarities] = useState<Song[]>([]);
+  const [similarities, setSimilarities] = useState<Song[]>([]);
 
   useEffect(() => {
     workerRef.current = new similarityWorker();
@@ -76,6 +59,9 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
             height: 800,
             backgroundColor: '#484848',
           });
+          let isDragging = false;
+          let lastX: number;
+          let lastY: number;
 
           fabricCanvasRef.current = fabricCanvas;
 
@@ -92,33 +78,29 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
 
           fabricCanvas.on('mouse:down', (opt) => {
             if (opt.e.altKey === true) {
-              fabricCanvas.isDragging = true;
-              fabricCanvas.selection = false;
-              fabricCanvas.lastPosX = opt.e.clientX;
-              fabricCanvas.lastPosY = opt.e.clientY;
-            } else if (opt.e.altKey === false) {
-              console.log('@mouse:down', opt.e.altKey);
-            } else if (!opt.target) {
-              console.log('@mouse:down', !opt.target);
+              isDragging = true;
+              lastX = opt.e.clientX;
+              lastY = opt.e.clientY;
             }
           });
 
           fabricCanvas.on('mouse:move', (opt) => {
-            if (fabricCanvas.isDragging) {
+            if (isDragging) {
               const e = opt.e;
               const vpt = fabricCanvas.viewportTransform!;
-              vpt[4] += e.clientX - fabricCanvas.lastPosX!;
-              vpt[5] += e.clientY - fabricCanvas.lastPosY!;
-              fabricCanvas.requestRenderAll();
-              fabricCanvas.lastPosX = e.clientX;
-              fabricCanvas.lastPosY = e.clientY;
+              vpt[4] += e.clientX - lastX;
+              vpt[5] += e.clientY - lastY;
+              lastX = e.clientX;
+              lastY = e.clientY;
+
+              requestAnimationFrame(() => {
+                fabricCanvas.requestRenderAll();
+              });
             }
           });
 
           fabricCanvas.on('mouse:up', () => {
-            fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform!);
-            fabricCanvas.isDragging = false;
-            fabricCanvas.selection = true;
+            isDragging = false;
           });
 
           let allCoordinates: { x: number; y: number }[] = [];
@@ -210,21 +192,19 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
       hasBorders: false,
     });
 
-    // Добавляем подсказку на холст
+    // Добавляем подсказку
     fabricCanvasRef.current!.add(tooltip);
-    fabricCanvasRef.current!.renderAll();
 
     // Удаляем подсказку при уходе с узла
     circle.on('mouseout', () => {
       fabricCanvasRef.current!.remove(tooltip);
-      fabricCanvasRef.current!.renderAll();
     });
 
     // Удаляем подсказку при клике на холст
     fabricCanvasRef.current!.on('mouse:down', () => {
       fabricCanvasRef.current!.remove(tooltip);
-      fabricCanvasRef.current!.renderAll();
     });
+    fabricCanvasRef.current!.renderAll();
   };
 
   const drawPoints = (nodes: Node[]) => {
@@ -393,9 +373,9 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
           <p className="text-song">Album: {selectedNode.song.albumName}</p>
         </Modal>
       )}
-      {similatitys && (
+      {similarities && (
         <div className="similarity-list">
-          {similatitys.map((song) => (
+          {similarities.map((song) => (
             <div
               key={song.id}
               className="song-item"

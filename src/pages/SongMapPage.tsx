@@ -1,7 +1,7 @@
 import React from 'react';
 import './PageStyle.css';
 import { SimilarityMap } from '../components/SimilarityMap/SimilarityMap';
-import { Song } from '../types/Song';
+import { Song } from '../types/types';
 
 interface SongMapPageProps {
   songs: Song[];
