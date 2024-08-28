@@ -3,13 +3,10 @@ import './PageStyle.css';
 import { SimilarityMap } from '../components/SimilarityMap/SimilarityMap';
 import { Song } from '../types/types';
 
-interface SongMapPageProps {
-  songs: Song[];
-}
-export const SongMapPage: React.FC<SongMapPageProps> = ({ songs }) => {
+export const SongMapPage: React.FC = () => {
   return (
     <div className="map-page">
-      <SimilarityMap songs={songs} />
+      <SimilarityMap />
     </div>
   );
 };

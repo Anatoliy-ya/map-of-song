@@ -1,45 +1,28 @@
 import React, { useRef, useEffect, useState } from 'react';
 import './SimilarityMap.css';
-import { Song, Node, Link, SongWithSimilarities } from '../../types/types';
+import { Song, Node, Link } from '../../types/types';
 import { Modal } from '../../UI/Modal';
-import similarityWorker from '../../workers/similarityWorker.ts?worker';
+
 import rusMap from '../../assets/rus.svg';
-import { findSimilarSongs } from '../../utils/similarityCalculator';
-
+import { RootState, AppDispatch } from '../../store/store';
+import { useDispatch, useSelector } from 'react-redux';
 import { fabric } from 'fabric';
+import { setLinks, setNodes } from '../../store/songsSlice';
 
-export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
-  const [processedSongs, setProcessedSongs] = useState<SongWithSimilarities[]>([]);
-  // const [positionModal, setPositionModal] = useState({ x: 0, y: 0 });
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [links, setLinks] = useState<Link[]>([]);
+export const SimilarityMap: React.FC = () => {
+  const dispatch: AppDispatch = useDispatch();
+
+  const processedSongs = useSelector((state: RootState) => state.songs.processedSongs);
+  const nodes = useSelector((state: RootState) => state.songs.nodes);
+  const links = useSelector((state: RootState) => state.songs.links);
+  const { loading } = useSelector((state: RootState) => state.songs);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
-  const workerRef = useRef<Worker | null>(null);
   const [coordinates, setCoordinates] = useState<{ x: number; y: number }[]>([]);
   const [similarities, setSimilarities] = useState<Song[]>([]);
 
-  useEffect(() => {
-    workerRef.current = new similarityWorker();
-    workerRef.current.onmessage = (event: MessageEvent<SongWithSimilarities[]>) => {
-      console.log('@worker', event.data);
-      setProcessedSongs(event.data);
-    };
-
-    return () => {
-      workerRef.current?.terminate();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (workerRef.current && Array.isArray(songs) && songs.length > 0) {
-      console.log('@songs', songs);
-      workerRef.current.postMessage(songs);
-    }
-  }, [songs]);
-
-  if (!Array.isArray(songs) || songs.length === 0) {
+  if (loading) {
     return <div>Loading...</div>;
   }
 
@@ -141,7 +124,10 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   }, []);
 
   useEffect(() => {
-    if (processedSongs.length === 0 || coordinates.length === 0) return;
+    if (processedSongs.length === 0 || coordinates.length === 0) {
+      console.log('Processed Songs or Coordinates are missing');
+      return;
+    }
 
     const newNodes: Node[] = generateRandomPointsInsidePolygon(
       coordinates,
@@ -152,30 +138,31 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
       song: processedSongs[index],
     }));
 
-    setNodes(newNodes);
+    dispatch(setNodes(newNodes));
+  }, [processedSongs, coordinates, dispatch]);
+
+  useEffect(() => {
+    if (nodes.length === 0 || processedSongs.length === 0) {
+      console.log('Nodes or Processed Songs are missing');
+      return;
+    }
 
     const newLinks: Link[] = [];
     processedSongs.forEach((song, i) => {
-      song.similarities.forEach((similar: { id: string; similarity: number }) => {
+      song.similarities.forEach((similar) => {
         const targetIndex = processedSongs.findIndex((s) => s.id === similar.id);
         if (targetIndex !== -1) {
           newLinks.push({
-            source: newNodes[i],
-            target: newNodes[targetIndex],
+            source: nodes[i],
+            target: nodes[targetIndex],
             strength: similar.similarity,
           });
         }
       });
     });
-
-    setLinks(newLinks);
-    console.log('@newLinks', newLinks);
-    console.log('@newNodes', newNodes);
-
-    return () => {
-      fabricCanvasRef.current?.dispose();
-    };
-  }, [processedSongs, coordinates]);
+    console.log('New Links:', newLinks);
+    dispatch(setLinks(newLinks));
+  }, [processedSongs, nodes]);
 
   const handleNodeMouseOver = (node: Node, circle: fabric.Circle) => {
     const tooltipText = `${node.song.artist} - ${node.song.track}`;
@@ -282,20 +269,36 @@ export const SimilarityMap: React.FC<{ songs: Song[] }> = ({ songs }) => {
   };
 
   const handleNodeClick = (node: Node) => {
-    console.log('Song:', node.song.track);
+    console.log('Node:', node);
 
+    // Удаление объектов типа 'circle' и 'line' с canvas
     fabricCanvasRef.current?.getObjects().forEach((obj) => {
       if (obj.type === 'circle' || obj.type === 'line') {
         fabricCanvasRef.current?.remove(obj);
       }
     });
 
+    const selectedSong = processedSongs.find((song) => song.id === node.song.id);
+
+    if (!selectedSong) {
+      console.warn('@Selected song not found in processedSongs.');
+      return;
+    }
+
+    const similaritySelectSongIds = selectedSong.similarities.map((similarity) => similarity.id);
+
+    const similarSongs = processedSongs.filter((song) => similaritySelectSongIds.includes(song.id));
+    console.log('@similarSongs', similarSongs);
     setSelectedNode(node);
     drawPoints(nodes);
-    drawLines(node, links);
-    setSimilarities(findSimilarSongs(node.song, songs));
+    setSimilarities(similarSongs);
   };
 
+  useEffect(() => {
+    if (selectedNode) {
+      drawLines(selectedNode, links);
+    }
+  }, [selectedNode, links]);
   const handleCanvasClick = (opt: fabric.IEvent<MouseEvent>) => {
     if (opt.e.altKey) {
       return;

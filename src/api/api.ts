@@ -4,7 +4,7 @@ import { transformData } from '../utils/transformData';
 import { Song } from '../types/types';
 
 const API_BASE_URL = 'http://localhost:3000';
-const API_PUBLIC_URL = 'https://early-bats-jam.loca.lt';
+const API_PUBLIC_URL = 'https://tough-drinks-clean.loca.lt';
 
 export const getAllSongs = async (): Promise<Song[]> => {
   try {

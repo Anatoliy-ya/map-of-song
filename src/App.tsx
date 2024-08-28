@@ -1,20 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { Song } from './types/types';
+import { Song, SongWithSimilarities } from './types/types';
 import { findSimilarSongs } from './utils/similarityCalculator';
 import { SongListPage } from './pages/SongListPage';
 import { SongMapPage } from './pages/SongMapPage';
+import similarityWorker from './workers/similarityWorker.ts?worker';
 
 import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from './store/store';
-import { fetchAllSongs } from './store/songsSlice';
+import { fetchAllSongs, setProcessedSongs } from './store/songsSlice';
 
 function App() {
   const [selectPage, setSelectPage] = useState<number>();
   const [similatitys, setSimilarities] = useState<Song[]>([]);
   const dispatch = useDispatch();
   const { songs, loading } = useSelector((state: RootState) => state.songs);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    workerRef.current = new similarityWorker();
+    workerRef.current.onmessage = (event: MessageEvent<SongWithSimilarities[]>) => {
+      console.log('@worker', event.data);
+      dispatch(setProcessedSongs(event.data));
+    };
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (workerRef.current && songs.length > 0) {
+      console.log('@songs', songs);
+      workerRef.current.postMessage(songs);
+    }
+  }, [songs]);
 
   useEffect(() => {
     // @ts-ignore
@@ -53,7 +74,7 @@ function App() {
               />
             }
           />
-          <Route path="/map" element={<SongMapPage songs={songs} />} />
+          <Route path="/map" element={<SongMapPage />} />
         </Routes>
       </div>
     </Router>
