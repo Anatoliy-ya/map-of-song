@@ -1,4 +1,4 @@
-import { applyMiddleware, configureStore } from '@reduxjs/toolkit';
+import { configureStore } from '@reduxjs/toolkit';
 import { songsReducer, SongsState } from './songsSlice';
 
 export const store = configureStore({
