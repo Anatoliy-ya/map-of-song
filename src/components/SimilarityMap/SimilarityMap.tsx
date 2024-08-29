@@ -62,6 +62,7 @@ export const SimilarityMap: React.FC = () => {
           fabricCanvas.on('mouse:down', (opt) => {
             if (opt.e.altKey === true) {
               isDragging = true;
+              fabricCanvas.selection = false;
               lastX = opt.e.clientX;
               lastY = opt.e.clientY;
             }
@@ -83,7 +84,9 @@ export const SimilarityMap: React.FC = () => {
           });
 
           fabricCanvas.on('mouse:up', () => {
+            fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform!);
             isDragging = false;
+            fabricCanvas.selection = true;
           });
 
           let allCoordinates: { x: number; y: number }[] = [];
@@ -299,6 +302,7 @@ export const SimilarityMap: React.FC = () => {
       drawLines(selectedNode, links);
     }
   }, [selectedNode, links]);
+
   const handleCanvasClick = (opt: fabric.IEvent<MouseEvent>) => {
     if (opt.e.altKey) {
       return;
